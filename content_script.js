@@ -1,20 +1,15 @@
-async function updateTheme() {
-    const linkElements = document.head.getElementsByTagName("link");
-    var isPWA = false;
+function updateTheme() {
+    if(document.visibilityState == "visible"){
+        const linkElements = document.querySelector('link[rel=manifest]');
 
-    for (let i = 0; i < linkElements.length; i++) {
-        const element = linkElements[i];
-        if (element.getAttribute("rel") == "manifest") {
-            fetchAndUpdateTheme(element.href)
+        if(linkElements && linkElements.href){
+            fetchAndUpdateTheme(linkElements.href)
+        } else {
+            browser.runtime.sendMessage({
+                type: "reset"
+            });
         }
     }
-
-    if (!isPWA && document.visibilityState == "visible") {
-        browser.runtime.sendMessage({
-            type: "reset"
-        });
-    }
-
 }
 
 const hexToLuma = (colour) => {
@@ -35,45 +30,43 @@ function textColor(colorHex) {
 }
 
 async function fetchAndUpdateTheme(url) {
-    if (document.visibilityState == "hidden") {
-        return
-    }
-    let isPWA = true
     let response = await fetch(url);
-    let manifest = await response.json();
     let {
         theme_color,
         background_color
-    } = manifest;
+    } = await response.json();
 
-    if ((typeof background_color == "undefined") && (typeof theme_color == "undefined")) {
-
-    } else {
-
-        if (typeof theme_color == "undefined") {
-            theme_color = background_color
+    if(theme_color || background_color){
+        if(!theme_color && background_color){
+            theme_color = background_color;
         }
 
-        if (typeof background_color == "undefined") {
-            background_color = theme_color
+        if(theme_color && !background_color){
+            theme_color = background_color;
         }
 
-        let themeObject = {
-            "colors": {
-                "accentcolor": background_color.toString(),
-                "toolbar": theme_color.toString(),
-                "textcolor": textColor(background_color.toString()),
-                "toolbar_text": textColor(theme_color.toString())
+        let colors = {};
+
+        if(background_color) {
+            colors.accentcolor = background_color.toString();
+            colors.textcolor = textColor(background_color.toString());
+        }
+
+        if(theme_color){
+            colors.toolbar = theme_color.toString();
+            colors.toolbar_text = textColor(theme_color.toString());
+        }
+
+        browser.runtime.sendMessage({
+            "type": "update",
+            "theme": {
+                colors
             }
-        }
-
-
-        if (document.visibilityState == "visible") {
-            browser.runtime.sendMessage({
-                "type": "update",
-                "theme": themeObject
-            });
-        }
+        });
+    } else {
+        browser.runtime.sendMessage({
+            type: "reset"
+        });
     }
 }
 
